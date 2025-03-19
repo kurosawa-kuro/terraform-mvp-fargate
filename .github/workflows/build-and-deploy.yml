@@ -1,8 +1,8 @@
-name: 3-Build-and-Deploy
+name: 2-Build-and-Deploy
 
 on:
   workflow_run:
-    workflows: ["2-Update-SSM-Parameters"]
+    workflows: ["1-Update-SSM-Parameters"]
     types:
       - completed
     branches: [main]

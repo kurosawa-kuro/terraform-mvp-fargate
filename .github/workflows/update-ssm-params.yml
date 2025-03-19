@@ -1,11 +1,8 @@
-name: 2-Update-SSM-Parameters
+name: 1-Update-SSM-Parameters
 
 on:
-  workflow_run:
-    workflows: ["1-Terraform-Apply"]
-    types:
-      - completed
-    branches: [main]
+  push:
+    branches: [ main ]
   workflow_dispatch:  # 手動実行
 
 jobs:
