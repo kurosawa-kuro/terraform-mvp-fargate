@@ -31,7 +31,11 @@ jobs:
           aws-region: ap-northeast-1
 
       - name: Terraform Init
-        run: terraform init
+        run: |
+          terraform init \
+            -backend-config="bucket=api-3000-02-tfstate" \
+            -backend-config="key=prod/terraform.tfstate" \
+            -backend-config="region=ap-northeast-1"
 
       - name: Terraform Plan
         run: terraform plan
