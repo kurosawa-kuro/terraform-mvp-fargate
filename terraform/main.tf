@@ -31,14 +31,26 @@ resource "aws_vpc" "main" {
 }
 
 # 3. パブリックサブネット作成
-resource "aws_subnet" "public" {
+resource "aws_subnet" "public_a" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.1.0/24"
   availability_zone       = "${local.region}a"
   map_public_ip_on_launch = true
   
   tags = {
-    Name = "${local.prefix}-public-subnet"
+    Name = "${local.prefix}-public-subnet-a"
+  }
+}
+
+# 3.1 追加のパブリックサブネット (マルチAZ構成のため)
+resource "aws_subnet" "public_c" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.2.0/24"
+  availability_zone       = "${local.region}c"
+  map_public_ip_on_launch = true
+  
+  tags = {
+    Name = "${local.prefix}-public-subnet-c"
   }
 }
 
@@ -66,20 +78,43 @@ resource "aws_route_table" "public" {
 }
 
 # 6. サブネットとルートテーブルの関連付け
-resource "aws_route_table_association" "public" {
-  subnet_id      = aws_subnet.public.id
+resource "aws_route_table_association" "public_a" {
+  subnet_id      = aws_subnet.public_a.id
   route_table_id = aws_route_table.public.id
 }
 
-# 7. セキュリティグループ作成
+resource "aws_route_table_association" "public_c" {
+  subnet_id      = aws_subnet.public_c.id
+  route_table_id = aws_route_table.public.id
+}
+
+# 7. ECS用セキュリティグループ作成
 resource "aws_security_group" "ecs_sg" {
-  name        = "${local.prefix}-sg"
-  description = "Allow inbound traffic on port 3000"
+  name        = "${local.prefix}-ecs-sg"
+  description = "Allow inbound traffic from ALB only"
+  vpc_id      = aws_vpc.main.id
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  
+  tags = {
+    Name = "${local.prefix}-ecs-sg"
+  }
+}
+
+# 7.1 ALB用セキュリティグループ作成
+resource "aws_security_group" "alb_sg" {
+  name        = "${local.prefix}-alb-sg"
+  description = "Allow inbound traffic on HTTP"
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    from_port   = 3000
-    to_port     = 3000
+    from_port   = 80
+    to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -92,8 +127,19 @@ resource "aws_security_group" "ecs_sg" {
   }
   
   tags = {
-    Name = "${local.prefix}-sg"
+    Name = "${local.prefix}-alb-sg"
   }
+}
+
+# 7.2 ECS SGにALBからのトラフィックを許可するルール
+resource "aws_security_group_rule" "allow_alb_to_ecs" {
+  type                     = "ingress"
+  from_port                = 3000
+  to_port                  = 3000
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.ecs_sg.id
+  source_security_group_id = aws_security_group.alb_sg.id
+  description              = "Allow traffic from ALB to ECS container"
 }
 
 # 8. Fargateタスク定義作成
@@ -182,6 +228,57 @@ resource "aws_iam_role_policy_attachment" "ecs_execution_role_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+# ALB作成
+resource "aws_lb" "app_alb" {
+  name               = "${local.prefix}-alb"
+  load_balancer_type = "application"
+  subnets            = [aws_subnet.public_a.id, aws_subnet.public_c.id]
+  security_groups    = [aws_security_group.alb_sg.id]
+  
+  tags = {
+    Name = "${local.prefix}-alb"
+  }
+}
+
+# ターゲットグループ作成
+resource "aws_lb_target_group" "express_tg" {
+  name        = "${local.prefix}-tg"
+  port        = 3000
+  protocol    = "HTTP"
+  vpc_id      = aws_vpc.main.id
+  target_type = "ip"
+  
+  health_check {
+    protocol            = "HTTP"
+    path                = "/healthcheck"
+    port                = "traffic-port"
+    healthy_threshold   = 3
+    unhealthy_threshold = 3
+    timeout             = 5
+    interval            = 30
+  }
+  
+  tags = {
+    Name = "${local.prefix}-tg"
+  }
+}
+
+# ALBリスナー作成
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.app_alb.arn
+  port              = 80
+  protocol          = "HTTP"
+  
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.express_tg.arn
+  }
+  
+  tags = {
+    Name = "${local.prefix}-http-listener"
+  }
+}
+
 # 12. Fargateサービス作成
 resource "aws_ecs_service" "express_service" {
   name            = "${local.prefix}-service"
@@ -191,16 +288,26 @@ resource "aws_ecs_service" "express_service" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets          = [aws_subnet.public.id]
+    subnets          = [aws_subnet.public_a.id, aws_subnet.public_c.id]
     security_groups  = [aws_security_group.ecs_sg.id]
     assign_public_ip = true
   }
+  
+  load_balancer {
+    target_group_arn = aws_lb_target_group.express_tg.arn
+    container_name   = "${local.prefix}-container"
+    container_port   = 3000
+  }
+  
+  depends_on = [
+    aws_lb_listener.http
+  ]
 }
 
 # 13. アウトプット
 output "service_url" {
-  value = "http://${aws_ecs_service.express_service.network_configuration[0].assign_public_ip}:3000"
-  description = "APIサービスのURL（注：IPアドレスはサービス起動後に確認してください）"
+  value = "http://${aws_lb.app_alb.dns_name}"
+  description = "ALBのDNS名（APIサービスのURL）"
 }
 
 # SSM Parameter Storeパラメータの作成
