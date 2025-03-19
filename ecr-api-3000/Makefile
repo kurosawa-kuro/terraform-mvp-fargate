@@ -96,6 +96,8 @@ create-dockerfile:
 	@echo "CMD [\"node\", \"app.js\"]" >> Dockerfile
 	@echo "Dockerfileを生成しました"
 
+
+
 create-all: create-app create-dockerfile setup
 	@echo "すべてのファイルを生成しました"
 
