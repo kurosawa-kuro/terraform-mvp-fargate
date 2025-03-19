@@ -200,7 +200,7 @@ resource "aws_ecs_service" "express_service" {
 # 13. アウトプット
 output "service_url" {
   value = "http://${aws_ecs_service.express_service.network_configuration[0].assign_public_ip}:3000"
-  description = "${local.prefix}のURL（注：IPアドレスはサービス起動後に確認してください）"
+  description = "APIサービスのURL（注：IPアドレスはサービス起動後に確認してください）"
 }
 
 # SSM Parameter Storeパラメータの作成
@@ -236,7 +236,7 @@ resource "aws_ssm_parameter" "node_env" {
   name        = "${local.ssm_prefix}/NODE_ENV"
   description = "Node environment"
   type        = "String"
-  value       = "development"
+  value       = "production"
 }
 
 resource "aws_ssm_parameter" "upload_dir" {
