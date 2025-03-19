@@ -38,8 +38,8 @@ jobs:
             -backend-config="region=ap-northeast-1"
 
       - name: Terraform Plan
-        run: terraform plan -var-file=prod.tfvars
+        run: terraform plan
 
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main'
-        run: terraform apply -auto-approve -var-file=prod.tfvars
+        run: terraform apply -auto-approve
