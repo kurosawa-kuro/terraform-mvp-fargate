@@ -1,8 +1,14 @@
-// try {
-//     require('dotenv').config();
-//   } catch (error) {
-//     console.log('dotenvモジュールがインストールされていないか、.envファイルがありません。環境変数を直接使用します。');
-//   }
+// 開発環境では.envファイルを使用し、本番環境ではSSMパラメータを使用
+if (process.env.NODE_ENV !== 'production') {
+  try {
+    require('dotenv').config();
+    console.log('.envファイルから環境変数を読み込みました');
+  } catch (error) {
+    console.log('dotenvモジュールがインストールされていないか、.envファイルがありません。環境変数を直接使用します。');
+  }
+} else {
+  console.log('本番環境のため、AWS SSMパラメータストアから環境変数を使用します');
+}
 
 const express = require("express");
 const app = express();
