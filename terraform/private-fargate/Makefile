@@ -17,15 +17,16 @@ plan:
 	@echo "変更計画を表示しています..."
 	terraform plan
 
-# 変更の適用（承認なし）
-apply:
-	@echo "変更を適用しています..."
-	terraform apply -auto-approve
-
-# 確認付きで変更を適用
-apply-confirm:
-	@echo "変更を適用します（確認あり）..."
-	terraform apply
+# init, plan, applyを順番に実行
+deploy:
+	@echo "デプロイを開始します..."
+	@echo "===================="
+	@make init
+	@echo "===================="
+	@make plan
+	@echo "===================="
+	@make apply
+	@echo "デプロイが完了しました"
 
 # リソースの削除（承認なし）
 destroy:
@@ -36,6 +37,16 @@ destroy:
 destroy-confirm:
 	@echo "リソースを削除します（確認あり）..."
 	terraform destroy
+
+# 変更の適用（承認なし）
+apply:
+	@echo "変更を適用しています..."
+	terraform apply -auto-approve
+
+# 確認付きで変更を適用
+apply-confirm:
+	@echo "変更を適用します（確認あり）..."
+	terraform apply
 
 # 構成ファイルのフォーマット
 fmt:
@@ -54,17 +65,6 @@ clean:
 	rm -f terraform.tfstate.backup
 	rm -f .terraform.lock.hcl
 
-# init, plan, applyを順番に実行
-deploy:
-	@echo "デプロイを開始します..."
-	@echo "===================="
-	@make init
-	@echo "===================="
-	@make plan
-	@echo "===================="
-	@make apply
-	@echo "デプロイが完了しました"
-
 # すべてをクリーンな状態から実行
 all: clean init validate plan apply
 
@@ -73,14 +73,14 @@ help:
 	@echo "使用可能なコマンド:"
 	@echo "  make init              - Terraformの初期化"
 	@echo "  make plan              - 変更計画の表示"
-	@echo "  make apply             - 変更の適用（承認なし）"
-	@echo "  make apply-confirm     - 変更の適用（確認あり）"
+	@echo "  make deploy            - init, plan, applyを順番に実行"
 	@echo "  make destroy           - リソースの削除（承認なし）"
 	@echo "  make destroy-confirm   - リソースの削除（確認あり）"
+	@echo "  make apply             - 変更の適用（承認なし）"
+	@echo "  make apply-confirm     - 変更の適用（確認あり）"
 	@echo "  make fmt               - 構成ファイルのフォーマット"
 	@echo "  make validate          - 構成の検証"
 	@echo "  make clean             - 一時ファイルの削除"
-	@echo "  make deploy            - init, plan, applyを順番に実行"
 	@echo "  make all               - クリーンな状態から初期化、検証、計画、適用まで実行"
 	@echo "  make help              - このヘルプメッセージを表示"
 

@@ -2,7 +2,7 @@
 # プロバイダ設定 & ローカル変数
 #########################################
 provider "aws" {
-  region = "ap-northeast-1"  # 東京リージョン
+  region = "ap-northeast-1" # 東京リージョン
 }
 
 locals {
@@ -15,13 +15,22 @@ locals {
   # SSMパラメータのプレフィックス
   ssm_prefix = "/${local.prefix}"
 
-  # 1.1 サブネット作成用に AZ と CIDR をまとめる
+  # -------------------------------
+  # サブネット作成用 CIDR ブロック
+  # -------------------------------
+  # Public Subnets (ALB / NATGW を配置)
   public_subnets = {
     a = "10.0.1.0/24"
     c = "10.0.2.0/24"
   }
-  
-  # SSM パラメータのARNリスト
+
+  # Private Subnets (Fargate タスク配置)
+  private_subnets = {
+    a = "10.0.11.0/24"
+    c = "10.0.12.0/24"
+  }
+
+  # SSM パラメータのARNリスト (任意の値)
   ssm_parameter_keys = [
     "BACKEND_PORT",
     "FRONTEND_PORT",
@@ -40,7 +49,7 @@ resource "aws_ecs_cluster" "default" {
 }
 
 #########################################
-# ネットワーク (VPC, Subnet, IGW, RouteTable)
+# VPC
 #########################################
 resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
@@ -52,21 +61,34 @@ resource "aws_vpc" "main" {
   }
 }
 
+#########################################
+# IGW & NAT Gateway (Public)
+#########################################
+
+# インターネットゲートウェイ
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
-
   tags = {
     Name = "${local.prefix}-igw"
   }
 }
 
-# サブネット (for_eachで複数作成)
-resource "aws_subnet" "public" {
-  for_each = local.public_subnets
+# NAT Gateway 用 EIP
+resource "aws_eip" "nat" {
+  vpc = true
+  tags = {
+    Name = "${local.prefix}-nat-eip"
+  }
+}
 
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = each.value
-  availability_zone       = "${local.region}${each.key}"
+#########################################
+# サブネット (Public)
+#########################################
+resource "aws_subnet" "public" {
+  for_each               = local.public_subnets
+  vpc_id                 = aws_vpc.main.id
+  cidr_block             = each.value
+  availability_zone      = "${local.region}${each.key}"
   map_public_ip_on_launch = true
 
   tags = {
@@ -74,7 +96,24 @@ resource "aws_subnet" "public" {
   }
 }
 
-# Public Route Table
+#########################################
+# サブネット (Private)
+#########################################
+resource "aws_subnet" "private" {
+  for_each               = local.private_subnets
+  vpc_id                 = aws_vpc.main.id
+  cidr_block             = each.value
+  availability_zone      = "${local.region}${each.key}"
+  map_public_ip_on_launch = false
+
+  tags = {
+    Name = "${local.prefix}-private-subnet-${each.key}"
+  }
+}
+
+#########################################
+# Route Table (Public)
+#########################################
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
@@ -88,12 +127,47 @@ resource "aws_route_table" "public" {
   }
 }
 
-# サブネットとルートテーブルの関連付け (for_each)
+# Public Subnet と Public RT の関連付け
 resource "aws_route_table_association" "public" {
   for_each = aws_subnet.public
-
   subnet_id      = each.value.id
   route_table_id = aws_route_table.public.id
+}
+
+#########################################
+# NAT Gateway (Public サブネットに 1つ配置)
+#########################################
+# ここではAZ=aにあるpublicサブネットにNATGWを置く
+resource "aws_nat_gateway" "main" {
+  allocation_id = aws_eip.nat.id
+  subnet_id     = aws_subnet.public["a"].id
+  tags = {
+    Name = "${local.prefix}-nat-gw"
+  }
+}
+
+#########################################
+# Route Table (Private)
+#########################################
+resource "aws_route_table" "private" {
+  vpc_id = aws_vpc.main.id
+
+  # NATGW による 0.0.0.0/0
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.main.id
+  }
+
+  tags = {
+    Name = "${local.prefix}-private-rt"
+  }
+}
+
+# Private Subnet と Private RT の関連付け
+resource "aws_route_table_association" "private" {
+  for_each = aws_subnet.private
+  subnet_id      = each.value.id
+  route_table_id = aws_route_table.private.id
 }
 
 #########################################
@@ -104,6 +178,7 @@ resource "aws_security_group" "ecs_sg" {
   description = "Allow inbound traffic from ALB only"
   vpc_id      = aws_vpc.main.id
 
+  # タスクからのインターネットアクセス（NAT 経由なので、egressは0.0.0.0/0でOK）
   egress {
     from_port   = 0
     to_port     = 0
@@ -125,7 +200,7 @@ resource "aws_security_group" "alb_sg" {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["0.0.0.0/0"]  # 全世界からHTTPアクセス可
   }
 
   egress {
@@ -140,7 +215,7 @@ resource "aws_security_group" "alb_sg" {
   }
 }
 
-# ALB から ECS への通信を許可
+# ALB から ECS への通信許可 (例: port 3000)
 resource "aws_security_group_rule" "allow_alb_to_ecs" {
   type                     = "ingress"
   from_port                = 3000
@@ -176,9 +251,10 @@ resource "aws_iam_role_policy_attachment" "ecs_execution_role_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# SSM パラメータアクセス用のポリシー
+# SSM パラメータアクセス用のポリシー (例)
 data "aws_iam_policy" "ssm_parameter_access" {
-  name = "${local.prefix}-ssm-parameter-access"
+  # 実際には「AmazonSSMReadOnlyAccess」等のAWS管理ポリシー、またはカスタムポリシー名を指定
+  name = "AmazonSSMReadOnlyAccess"
 }
 
 resource "aws_iam_role_policy_attachment" "ecs_ssm_policy_attachment" {
@@ -192,12 +268,15 @@ resource "aws_iam_role_policy_attachment" "ecs_ssm_policy_attachment" {
 resource "aws_cloudwatch_log_group" "express_logs" {
   name              = "/ecs/${local.prefix}"
   retention_in_days = 7
+
+  tags = {
+    Name = "${local.prefix}-logs"
+  }
 }
 
 #########################################
-# ECS Task Definition (コンテナ設定)
+# ECS タスク定義
 #########################################
-# SSM パラメータを secrets として渡す
 locals {
   # タスク定義に渡す secrets を動的リスト化
   container_secrets = [
@@ -231,7 +310,6 @@ resource "aws_ecs_task_definition" "express_task" {
         }
       ]
 
-      # 上で動的生成した container_secrets をそのまま割り当て
       secrets = local.container_secrets
 
       logConfiguration = {
@@ -244,6 +322,10 @@ resource "aws_ecs_task_definition" "express_task" {
       }
     }
   ])
+
+  tags = {
+    Name = "${local.prefix}-task"
+  }
 }
 
 #########################################
@@ -252,7 +334,6 @@ resource "aws_ecs_task_definition" "express_task" {
 resource "aws_lb" "app_alb" {
   name               = "${local.prefix}-alb"
   load_balancer_type = "application"
-  # for_each サブネットのIDを配列化
   subnets            = values(aws_subnet.public)[*].id
   security_groups    = [aws_security_group.alb_sg.id]
 
@@ -272,7 +353,7 @@ resource "aws_lb_target_group" "express_tg" {
   port        = 3000
   protocol    = "HTTP"
   vpc_id      = aws_vpc.main.id
-  target_type = "ip"
+  target_type = "ip"  # Fargateは IP タイプ
 
   health_check {
     protocol            = "HTTP"
@@ -301,7 +382,7 @@ resource "aws_lb_listener" "http" {
 }
 
 #########################################
-# ECS Service
+# ECS Service (Fargate → Private Subnet)
 #########################################
 resource "aws_ecs_service" "express_service" {
   name            = "${local.prefix}-service"
@@ -310,10 +391,12 @@ resource "aws_ecs_service" "express_service" {
   desired_count   = 1
   launch_type     = "FARGATE"
 
+  # プライベートサブネットを使用
   network_configuration {
-    subnets          = values(aws_subnet.public)[*].id
-    security_groups  = [aws_security_group.ecs_sg.id]
-    assign_public_ip = true
+    subnets         = values(aws_subnet.private)[*].id
+    security_groups = [aws_security_group.ecs_sg.id]
+    # プライベートサブネットなので Public IP は付与しない
+    assign_public_ip = false
   }
 
   load_balancer {
@@ -325,6 +408,10 @@ resource "aws_ecs_service" "express_service" {
   depends_on = [
     aws_lb_listener.http
   ]
+
+  tags = {
+    Name = "${local.prefix}-service"
+  }
 }
 
 #########################################
