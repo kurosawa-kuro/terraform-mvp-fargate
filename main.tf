@@ -9,6 +9,9 @@ locals {
   region        = "ap-northeast-1"
   ecr_repo_name = "ecr-api-3000"
   ecr_image     = "${local.account_id}.dkr.ecr.${local.region}.amazonaws.com/${local.ecr_repo_name}"
+  
+  # SSMパラメータのプレフィックス
+  ssm_prefix    = "/${local.prefix}"
 }
 
 # 1. ECSクラスタ作成
@@ -101,6 +104,7 @@ resource "aws_ecs_task_definition" "express_task" {
   cpu                      = "256"
   memory                   = "512"
   execution_role_arn       = aws_iam_role.ecs_execution_role.arn
+  task_role_arn            = aws_iam_role.ecs_execution_role.arn
 
   container_definitions = jsonencode([{
     name      = "${local.prefix}-container"
@@ -111,6 +115,32 @@ resource "aws_ecs_task_definition" "express_task" {
       hostPort      = 3000
       protocol      = "tcp"
     }]
+    secrets = [
+      {
+        name      = "BACKEND_PORT",
+        valueFrom = aws_ssm_parameter.backend_port.arn
+      },
+      {
+        name      = "FRONTEND_PORT",
+        valueFrom = aws_ssm_parameter.frontend_port.arn
+      },
+      {
+        name      = "DATABASE_URL",
+        valueFrom = aws_ssm_parameter.database_url.arn
+      },
+      {
+        name      = "JWT_SECRET_KEY",
+        valueFrom = aws_ssm_parameter.jwt_secret_key.arn
+      },
+      {
+        name      = "NODE_ENV",
+        valueFrom = aws_ssm_parameter.node_env.arn
+      },
+      {
+        name      = "UPLOAD_DIR",
+        valueFrom = aws_ssm_parameter.upload_dir.arn
+      }
+    ],
     logConfiguration = {
       logDriver = "awslogs"
       options = {
@@ -171,4 +201,73 @@ resource "aws_ecs_service" "express_service" {
 output "service_url" {
   value = "http://${aws_ecs_service.express_service.network_configuration[0].assign_public_ip}:3000"
   description = "${local.prefix}のURL（注：IPアドレスはサービス起動後に確認してください）"
+}
+
+# SSM Parameter Storeパラメータの作成
+resource "aws_ssm_parameter" "backend_port" {
+  name        = "${local.ssm_prefix}/BACKEND_PORT"
+  description = "Backend application port"
+  type        = "String"
+  value       = "8000"
+}
+
+resource "aws_ssm_parameter" "frontend_port" {
+  name        = "${local.ssm_prefix}/FRONTEND_PORT"
+  description = "Frontend application port"
+  type        = "String"
+  value       = "3000"
+}
+
+resource "aws_ssm_parameter" "database_url" {
+  name        = "${local.ssm_prefix}/DATABASE_URL"
+  description = "Database connection URL"
+  type        = "SecureString"
+  value       = "postgresql://postgres:postgres@localhost:5432/dev_db"
+}
+
+resource "aws_ssm_parameter" "jwt_secret_key" {
+  name        = "${local.ssm_prefix}/JWT_SECRET_KEY"
+  description = "JWT secret key for authentication"
+  type        = "SecureString"
+  value       = "secret"
+}
+
+resource "aws_ssm_parameter" "node_env" {
+  name        = "${local.ssm_prefix}/NODE_ENV"
+  description = "Node environment"
+  type        = "String"
+  value       = "development"
+}
+
+resource "aws_ssm_parameter" "upload_dir" {
+  name        = "${local.ssm_prefix}/UPLOAD_DIR"
+  description = "Upload directory path"
+  type        = "String"
+  value       = "uploads"
+}
+
+# SSMパラメータへのアクセス権限をIAMポリシーに追加
+resource "aws_iam_policy" "ssm_parameter_access" {
+  name        = "${local.prefix}-ssm-parameter-access"
+  description = "Allow access to SSM parameters"
+  
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "ssm:GetParameters",
+          "ssm:GetParameter"
+        ]
+        Effect   = "Allow"
+        Resource = "arn:aws:ssm:${local.region}:${local.account_id}:parameter${local.ssm_prefix}/*"
+      }
+    ]
+  })
+}
+
+# SSMポリシーをECS実行ロールにアタッチ
+resource "aws_iam_role_policy_attachment" "ecs_ssm_policy_attachment" {
+  role       = aws_iam_role.ecs_execution_role.name
+  policy_arn = aws_iam_policy.ssm_parameter_access.arn
 }

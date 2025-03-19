@@ -18,6 +18,7 @@ help:
 	@echo "  make ecr-login       - ECRレジストリへのログイン"
 	@echo "  make ecr-build       - Dockerイメージのビルド"
 	@echo "  make ecr-tag         - イメージにタグを付ける"
+	@echo "  make docker-stop     - 実行中のコンテナを停止"
 	@echo "  make ecr-push        - イメージをECRにプッシュ"
 	@echo "  make ecr-deploy      - ログイン、ビルド、タグ付け、プッシュの全工程を実行"
 	@echo ""
@@ -44,6 +45,9 @@ ecr-build:
 
 ecr-tag:
 	docker tag $(IMAGE_NAME):$(IMAGE_TAG) $(ECR_REPO):$(IMAGE_TAG)
+
+docker-stop:
+	docker stop $$(docker ps -q --filter ancestor=$(IMAGE_NAME):$(IMAGE_TAG)) 2>/dev/null || echo "実行中のコンテナがありません"
 
 ecr-push:
 	docker push $(ECR_REPO):$(IMAGE_TAG)
@@ -96,7 +100,7 @@ create-all: create-app create-dockerfile setup
 	@echo "すべてのファイルを生成しました"
 
 # デフォルトコマンド
-.PHONY: help setup start dev ecr-login ecr-build ecr-tag ecr-push ecr-deploy \
+.PHONY: help setup start dev ecr-login ecr-build ecr-tag docker-stop ecr-push ecr-deploy \
 	create-app create-dockerfile create-all
 
 .DEFAULT_GOAL := help
