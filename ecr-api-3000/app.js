@@ -106,6 +106,8 @@ function setupRoutes(app) {
  */
 function logEnvironmentInfo() {
   const envInfo = appService.getEnvironmentInfo();
+
+  console.log("Github Action動作確認:");
   
   console.log("環境変数:");
   console.log("====================");
