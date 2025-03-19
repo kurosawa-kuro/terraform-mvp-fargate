@@ -17,6 +17,52 @@ npm install
 npm start
 ```
 
+## Makefileの使い方
+
+このプロジェクトではMakefileを使用して様々な操作を簡略化しています。
+
+### アプリケーション開発
+
+```bash
+# 依存関係のインストール（package.jsonの初期化とExpressのインストール）
+make setup
+
+# アプリケーションの起動
+make start
+```
+
+### ファイル生成
+
+```bash
+# app.jsファイルの生成
+make create-app
+
+# Dockerfileの生成
+make create-dockerfile
+
+# 必要なファイルをすべて生成（app.js、Dockerfile、package.json）
+make create-all
+```
+
+### Docker操作とECRデプロイ
+
+```bash
+# ECRレジストリへのログイン
+make ecr-login
+
+# Dockerイメージのビルド
+make ecr-build
+
+# イメージにタグを付ける
+make ecr-tag
+
+# イメージをECRにプッシュ
+make ecr-push
+
+# ログイン、ビルド、タグ付け、プッシュの全工程を実行
+make ecr-deploy
+```
+
 ## Docker
 
 ```bash
