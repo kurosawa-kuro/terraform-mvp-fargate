@@ -23,9 +23,7 @@ help:
 	@echo "  make ecr-deploy      - ログイン、ビルド、タグ付け、プッシュの全工程を実行"
 	@echo ""
 	@echo "ファイル生成:"
-	@echo "  make create-app      - app.jsファイルの生成"
-	@echo "  make create-dockerfile - Dockerfileの生成"
-	@echo "  make create-all      - 必要なファイルをすべて生成"
+	@echo "  make setup           - 必要なファイルをすべて生成"
 
 # Node.js関連コマンド
 setup:
@@ -55,54 +53,7 @@ ecr-push:
 ecr-deploy: ecr-login ecr-build ecr-tag ecr-push
 	@echo "ECRへのデプロイが完了しました"
 
-# ファイル生成コマンド
-create-app:
-	@echo "const express = require(\"express\");" > app.js
-	@echo "const app = express();" >> app.js
-	@echo "" >> app.js
-	@echo "app.get(\"/\", (req, res) => {" >> app.js
-	@echo "  console.log(\"Hello World\");" >> app.js
-	@echo "  res.send(\"Hello World\");" >> app.js
-	@echo "});" >> app.js
-	@echo "" >> app.js
-	@echo "app.listen($(APP_PORT), () => {" >> app.js
-	@echo "  console.log(\"Server is running on port $(APP_PORT)\");" >> app.js
-	@echo "});" >> app.js
-	@echo "app.jsファイルを生成しました"
-
-create-dockerfile:
-	@echo "FROM node:18-alpine" > Dockerfile
-	@echo "" >> Dockerfile
-	@echo "WORKDIR /app" >> Dockerfile
-	@echo "" >> Dockerfile
-	@echo "# package.jsonとpackage-lock.jsonのみをコピーして依存関係をインストール" >> Dockerfile
-	@echo "COPY package*.json ./" >> Dockerfile
-	@echo "RUN npm ci --only=production" >> Dockerfile
-	@echo "" >> Dockerfile
-	@echo "# アプリケーションのソースコードをコピー" >> Dockerfile
-	@echo "COPY app.js ./" >> Dockerfile
-	@echo "" >> Dockerfile
-	@echo "# 非rootユーザーでアプリケーションを実行" >> Dockerfile
-	@echo "USER node" >> Dockerfile
-	@echo "" >> Dockerfile
-	@echo "# アプリケーションが使用するポートを公開" >> Dockerfile
-	@echo "EXPOSE $(APP_PORT)" >> Dockerfile
-	@echo "" >> Dockerfile
-	@echo "# ヘルスチェック" >> Dockerfile
-	@echo "HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \\" >> Dockerfile
-	@echo "  CMD wget --no-verbose --tries=1 --spider http://localhost:$(APP_PORT)/ || exit 1" >> Dockerfile
-	@echo "" >> Dockerfile
-	@echo "# コンテナ起動時に実行するコマンド" >> Dockerfile
-	@echo "CMD [\"node\", \"app.js\"]" >> Dockerfile
-	@echo "Dockerfileを生成しました"
-
-
-
-create-all: create-app create-dockerfile setup
-	@echo "すべてのファイルを生成しました"
-
 # デフォルトコマンド
-.PHONY: help setup start dev ecr-login ecr-build ecr-tag docker-stop ecr-push ecr-deploy \
-	create-app create-dockerfile create-all
+.PHONY: help setup start dev ecr-login ecr-build ecr-tag docker-stop ecr-push ecr-deploy
 
 .DEFAULT_GOAL := help
