@@ -25,5 +25,5 @@ jobs:
           
       - name: Update SSM Parameters
         run: |
-          aws ssm put-parameter --name "/api-3000/DATABASE_URL" --value "${{ secrets.DATABASE_URL }}" --type "SecureString" --overwrite
-          aws ssm put-parameter --name "/api-3000/JWT_SECRET_KEY" --value "${{ secrets.JWT_SECRET_KEY }}" --type "SecureString" --overwrite
+          aws ssm put-parameter --name "/api-3000-02/DATABASE_URL" --value "${{ secrets.DATABASE_URL }}" --type "SecureString" --overwrite
+          aws ssm put-parameter --name "/api-3000-02/JWT_SECRET_KEY" --value "${{ secrets.JWT_SECRET_KEY }}" --type "SecureString" --overwrite
