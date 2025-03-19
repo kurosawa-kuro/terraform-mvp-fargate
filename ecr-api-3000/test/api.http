@@ -2,3 +2,10 @@
 
 ### アクセス確認
 GET http://{{PublicIP}}:3000
+
+
+@service_url = http://api-3000-03-alb-405037979.ap-northeast-1.elb.amazonaws.com
+
+
+### アクセス確認
+GET {{service_url}}
