@@ -4,7 +4,7 @@ provider "aws" {
 
 # 共通変数の定義
 locals {
-  prefix        = "api-3000"
+  prefix        = "api-3000-02"
   account_id    = "503561449641"
   region        = "ap-northeast-1"
   ecr_repo_name = "ecr-api-3000"
