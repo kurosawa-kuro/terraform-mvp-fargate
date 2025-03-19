@@ -57,9 +57,9 @@ jobs:
 
       - name: Update ECS service
         run: |
-          aws ecs update-service --cluster api-3000-02-cluster --service api-3000-02-service --force-new-deployment
+          aws ecs update-service --cluster api-3000-03-cluster --service api-3000-03-service --force-new-deployment
 
       - name: Monitor ECS deployment
         run: |
-          aws ecs wait services-stable --cluster api-3000-02-cluster --services api-3000-02-service
+          aws ecs wait services-stable --cluster api-3000-03-cluster --services api-3000-03-service
           echo "Deployment completed successfully!"

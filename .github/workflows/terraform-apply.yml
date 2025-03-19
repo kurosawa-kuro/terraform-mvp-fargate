@@ -33,7 +33,7 @@ jobs:
       - name: Terraform Init
         run: |
           terraform init \
-            -backend-config="bucket=api-3000-02-tfstate" \
+            -backend-config="bucket=api-3000-03-tfstate" \
             -backend-config="key=prod/terraform.tfstate" \
             -backend-config="region=ap-northeast-1"
 

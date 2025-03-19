@@ -4,7 +4,7 @@ provider "aws" {
 
 # 共通変数の定義
 locals {
-  prefix        = "api-3000-02"
+  prefix        = "api-3000-03"
   account_id    = "503561449641"
   region        = "ap-northeast-1"
   ecr_repo_name = "ecr-api-3000"
@@ -316,6 +316,7 @@ resource "aws_ssm_parameter" "backend_port" {
   description = "Backend application port"
   type        = "String"
   value       = "8000"
+  overwrite   = true
 }
 
 resource "aws_ssm_parameter" "frontend_port" {
@@ -323,6 +324,7 @@ resource "aws_ssm_parameter" "frontend_port" {
   description = "Frontend application port"
   type        = "String"
   value       = "3000"
+  overwrite   = true
 }
 
 resource "aws_ssm_parameter" "database_url" {
@@ -330,6 +332,7 @@ resource "aws_ssm_parameter" "database_url" {
   description = "Database connection URL"
   type        = "SecureString"
   value       = "postgresql://postgres:postgres@localhost:5432/dev_db"
+  overwrite   = true
 }
 
 resource "aws_ssm_parameter" "jwt_secret_key" {
@@ -337,6 +340,7 @@ resource "aws_ssm_parameter" "jwt_secret_key" {
   description = "JWT secret key for authentication"
   type        = "SecureString"
   value       = "secret"
+  overwrite   = true
 }
 
 resource "aws_ssm_parameter" "node_env" {
@@ -344,6 +348,7 @@ resource "aws_ssm_parameter" "node_env" {
   description = "Node environment"
   type        = "String"
   value       = "production"
+  overwrite   = true
 }
 
 resource "aws_ssm_parameter" "upload_dir" {
@@ -351,6 +356,7 @@ resource "aws_ssm_parameter" "upload_dir" {
   description = "Upload directory path"
   type        = "String"
   value       = "uploads"
+  overwrite   = true
 }
 
 # SSMパラメータへのアクセス権限をIAMポリシーに追加
