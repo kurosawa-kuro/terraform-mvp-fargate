@@ -12,6 +12,8 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    env:
+      PREFIX: api-3000-ssm-04
 
     steps:
       - name: Checkout code
@@ -57,9 +59,9 @@ jobs:
 
       - name: Update ECS service
         run: |
-          aws ecs update-service --cluster api-3000-03-cluster --service api-3000-03-service --force-new-deployment
+          aws ecs update-service --cluster ${PREFIX}-cluster --service ${PREFIX}-service --force-new-deployment
 
       - name: Monitor ECS deployment
         run: |
-          aws ecs wait services-stable --cluster api-3000-03-cluster --services api-3000-03-service
+          aws ecs wait services-stable --cluster ${PREFIX}-cluster --services ${PREFIX}-service
           echo "Deployment completed successfully!"

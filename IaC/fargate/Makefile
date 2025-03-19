@@ -1,4 +1,4 @@
-.PHONY: init plan apply destroy clean fmt validate all help
+.PHONY: init plan apply destroy clean fmt validate all help deploy
 
 # デフォルトターゲット
 .DEFAULT_GOAL := help
@@ -54,6 +54,17 @@ clean:
 	rm -f terraform.tfstate.backup
 	rm -f .terraform.lock.hcl
 
+# init, plan, applyを順番に実行
+deploy:
+	@echo "デプロイを開始します..."
+	@echo "===================="
+	@make init
+	@echo "===================="
+	@make plan
+	@echo "===================="
+	@make apply
+	@echo "デプロイが完了しました"
+
 # すべてをクリーンな状態から実行
 all: clean init validate plan apply
 
@@ -69,6 +80,7 @@ help:
 	@echo "  make fmt               - 構成ファイルのフォーマット"
 	@echo "  make validate          - 構成の検証"
 	@echo "  make clean             - 一時ファイルの削除"
+	@echo "  make deploy            - init, plan, applyを順番に実行"
 	@echo "  make all               - クリーンな状態から初期化、検証、計画、適用まで実行"
 	@echo "  make help              - このヘルプメッセージを表示"
 

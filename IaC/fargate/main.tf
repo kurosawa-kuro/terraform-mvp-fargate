@@ -6,7 +6,7 @@ provider "aws" {
 }
 
 locals {
-  prefix        = "api-3000-03"
+  prefix        = "api-3000-ssm-04"
   account_id    = "503561449641"
   region        = "ap-northeast-1"
   ecr_repo_name = "ecr-api-3000"
@@ -20,41 +20,16 @@ locals {
     a = "10.0.1.0/24"
     c = "10.0.2.0/24"
   }
-
-  # 1.2 SSM パラメータを一括管理（キー名＝環境変数名）
-  # type = "SecureString" などパラメータごとに必要なものを指定
-  ssm_parameters = {
-    BACKEND_PORT = {
-      type        = "String"
-      description = "Backend application port"
-      value       = "8000"
-    },
-    FRONTEND_PORT = {
-      type        = "String"
-      description = "Frontend application port"
-      value       = "3000"
-    },
-    DATABASE_URL = {
-      type        = "SecureString"
-      description = "Database connection URL"
-      value       = "postgresql://postgres:postgres@api-3000-03-db.cluster-xxxxxxxxxx.ap-northeast-1.rds.amazonaws.com:5432/dev_db"
-    },
-    JWT_SECRET_KEY = {
-      type        = "SecureString"
-      description = "JWT secret key for authentication"
-      value       = "secret"
-    },
-    NODE_ENV = {
-      type        = "String"
-      description = "Node environment"
-      value       = "production"
-    },
-    UPLOAD_DIR = {
-      type        = "String"
-      description = "Upload directory path"
-      value       = "uploads"
-    }
-  }
+  
+  # SSM パラメータのARNリスト
+  ssm_parameter_keys = [
+    "BACKEND_PORT",
+    "FRONTEND_PORT",
+    "DATABASE_URL",
+    "JWT_SECRET_KEY",
+    "NODE_ENV",
+    "UPLOAD_DIR"
+  ]
 }
 
 #########################################
@@ -201,39 +176,14 @@ resource "aws_iam_role_policy_attachment" "ecs_execution_role_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-#########################################
-# SSM パラメータ (for_each)
-#########################################
-resource "aws_ssm_parameter" "parameters" {
-  for_each    = local.ssm_parameters
-
-  name        = "${local.ssm_prefix}/${each.key}"
-  type        = each.value.type
-  description = each.value.description
-  value       = each.value.value
-  overwrite   = true
-}
-
-# SSMポリシー (SSM パラメータへのアクセス)
-resource "aws_iam_policy" "ssm_parameter_access" {
-  name        = "${local.prefix}-ssm-parameter-access"
-  description = "Allow access to SSM parameters"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action   = ["ssm:GetParameters", "ssm:GetParameter"],
-        Effect   = "Allow",
-        Resource = "arn:aws:ssm:${local.region}:${local.account_id}:parameter${local.ssm_prefix}/*"
-      }
-    ]
-  })
+# SSM パラメータアクセス用のポリシー
+data "aws_iam_policy" "ssm_parameter_access" {
+  name = "${local.prefix}-ssm-parameter-access"
 }
 
 resource "aws_iam_role_policy_attachment" "ecs_ssm_policy_attachment" {
   role       = aws_iam_role.ecs_execution_role.name
-  policy_arn = aws_iam_policy.ssm_parameter_access.arn
+  policy_arn = data.aws_iam_policy.ssm_parameter_access.arn
 }
 
 #########################################
@@ -247,14 +197,13 @@ resource "aws_cloudwatch_log_group" "express_logs" {
 #########################################
 # ECS Task Definition (コンテナ設定)
 #########################################
-# ここで SSM パラメータを secrets として渡すため、
-# local でまとめた secrets を利用
+# SSM パラメータを secrets として渡す
 locals {
   # タスク定義に渡す secrets を動的リスト化
   container_secrets = [
-    for key, _ in local.ssm_parameters : {
+    for key in local.ssm_parameter_keys : {
       name      = key
-      valueFrom = aws_ssm_parameter.parameters[key].arn
+      valueFrom = "arn:aws:ssm:${local.region}:${local.account_id}:parameter${local.ssm_prefix}/${key}"
     }
   ]
 }
