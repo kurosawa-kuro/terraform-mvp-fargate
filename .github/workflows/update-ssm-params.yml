@@ -6,7 +6,7 @@ on:
     types:
       - completed
     branches: [main]
-  workflow_dispatch:  # 手動実行用
+  workflow_dispatch:  # 手動実行
 
 jobs:
   deploy:
