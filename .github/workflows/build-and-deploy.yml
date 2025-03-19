@@ -1,17 +1,17 @@
-name: Build and Deploy to ECS
+name: 3-Build-and-Deploy
 
 on:
-  push:
-    branches: [ main ]
-    paths-ignore:
-      - 'terraform/**'
-      - '.github/workflows/terraform-apply.yml'
-      - '.github/workflows/update-ssm-params.yml'
+  workflow_run:
+    workflows: ["2-Update-SSM-Parameters"]
+    types:
+      - completed
+    branches: [main]
   workflow_dispatch:  # 手動実行用
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
 
     steps:
       - name: Checkout code
@@ -37,7 +37,6 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-1
 
-      # 以下は元の内容と同じ
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
@@ -54,7 +53,7 @@ jobs:
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
       - name: Update ECS service
         run: |
