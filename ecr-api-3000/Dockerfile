@@ -2,12 +2,11 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-RUN npm install dotenv
-
-# package.jsonとpackage-lock.jsonのみをコピーして依存関係をインストール
+# package.jsonとpackage-lock.jsonをコピー
 COPY package*.json ./
-RUN npm ci --only=production
 
+# 依存関係のインストール（dotenvを含む）
+RUN npm ci --only=production
 
 # アプリケーションのソースコードをコピー
 COPY app.js ./

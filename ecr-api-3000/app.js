@@ -1,9 +1,9 @@
-try {
-    require('dotenv').config();
-  } catch (error) {
-    console.log('dotenvモジュールがインストールされていないか、.envファイルがありません。環境変数を直接使用します。');
-  }
-  
+// try {
+//     require('dotenv').config();
+//   } catch (error) {
+//     console.log('dotenvモジュールがインストールされていないか、.envファイルがありません。環境変数を直接使用します。');
+//   }
+
 const express = require("express");
 const app = express();
 
