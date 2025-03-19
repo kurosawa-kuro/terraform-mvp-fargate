@@ -9,6 +9,7 @@
 // モジュールのインポート
 // -----------------------------------------------------------------------------
 const express = require("express");
+const { Client } = require("pg");
 
 // -----------------------------------------------------------------------------
 // サービス層の定義
@@ -46,6 +47,43 @@ const appService = {
         uploadDir: process.env.UPLOAD_DIR
       }
     };
+  },
+
+  /**
+   * PostgreSQLデータベース接続をテストする
+   * @returns {Promise<Object>} 接続結果
+   */
+  testDatabaseConnection: async () => {
+    const dbUrl = process.env.DATABASE_URL;
+    
+    if (!dbUrl) {
+      return { success: false, message: "DATABASE_URL環境変数が設定されていません" };
+    }
+
+    const client = new Client({
+      connectionString: dbUrl,
+      ssl: {
+        rejectUnauthorized: false // 開発環境ではSSL検証をスキップ
+      }
+    });
+
+    try {
+      await client.connect();
+      const result = await client.query('SELECT NOW() as current_time');
+      await client.end();
+      
+      return {
+        success: true,
+        message: "データベース接続に成功しました",
+        timestamp: result.rows[0].current_time
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: `データベース接続に失敗しました: ${error.message}`,
+        error: error.stack
+      };
+    }
   }
 };
 
@@ -104,7 +142,7 @@ function setupRoutes(app) {
 /**
  * 環境変数の情報をログに出力する
  */
-function logEnvironmentInfo() {
+async function logEnvironmentInfo() {
   const envInfo = appService.getEnvironmentInfo();
 
   console.log("Github Action動作確認 ３３:");
@@ -122,17 +160,36 @@ function logEnvironmentInfo() {
   console.log(`\nアップロード設定:`);
   console.log(`- UPLOAD_DIR: ${envInfo.upload.uploadDir}`);
   console.log("====================");
+
+  // PostgreSQL接続テスト
+  console.log("\nPostgreSQL接続テスト:");
+  console.log("====================");
+  try {
+    const dbTestResult = await appService.testDatabaseConnection();
+    if (dbTestResult.success) {
+      console.log(`✅ ${dbTestResult.message}`);
+      console.log(`📅 サーバー時間: ${dbTestResult.timestamp}`);
+    } else {
+      console.log(`❌ ${dbTestResult.message}`);
+      if (dbTestResult.error) {
+        console.log(`エラー詳細: ${dbTestResult.error}`);
+      }
+    }
+  } catch (error) {
+    console.log(`❌ 予期せぬエラーが発生しました: ${error.message}`);
+  }
+  console.log("====================");
 }
 
 /**
  * サーバーを起動する
  * @param {Object} app - Expressアプリケーションインスタンス
  */
-function startServer(app) {
+async function startServer(app) {
   const port = process.env.FRONTEND_PORT || 3000;
   
-  app.listen(port, () => {
-    logEnvironmentInfo();
+  app.listen(port, async () => {
+    await logEnvironmentInfo();
     console.log(`サーバーはポート ${port} で起動しています`);
   });
 }

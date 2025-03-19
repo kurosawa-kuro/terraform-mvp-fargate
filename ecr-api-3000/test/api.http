@@ -1,4 +1,4 @@
-@PublicIP = 13.113.173.244
+@PublicIP = 35.72.14.6
 
 ### アクセス確認
 GET http://{{PublicIP}}:3000
