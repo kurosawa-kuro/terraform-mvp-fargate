@@ -2,9 +2,18 @@ provider "aws" {
   region = "ap-northeast-1"  # 東京リージョン
 }
 
+# 共通変数の定義
+locals {
+  prefix        = "api-3000"
+  account_id    = "503561449641"
+  region        = "ap-northeast-1"
+  ecr_repo_name = "ecr-api-3000"
+  ecr_image     = "${local.account_id}.dkr.ecr.${local.region}.amazonaws.com/${local.ecr_repo_name}"
+}
+
 # 1. ECSクラスタ作成
 resource "aws_ecs_cluster" "default" {
-  name = "api-3000-cluster"
+  name = "${local.prefix}-cluster"
 }
 
 # 2. VPC設定
@@ -14,7 +23,7 @@ resource "aws_vpc" "main" {
   enable_dns_hostnames = true
   
   tags = {
-    Name = "api-3000-vpc"
+    Name = "${local.prefix}-vpc"
   }
 }
 
@@ -22,11 +31,11 @@ resource "aws_vpc" "main" {
 resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.1.0/24"
-  availability_zone       = "ap-northeast-1a"
+  availability_zone       = "${local.region}a"
   map_public_ip_on_launch = true
   
   tags = {
-    Name = "api-3000-public-subnet"
+    Name = "${local.prefix}-public-subnet"
   }
 }
 
@@ -35,7 +44,7 @@ resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
   
   tags = {
-    Name = "api-3000-igw"
+    Name = "${local.prefix}-igw"
   }
 }
 
@@ -49,7 +58,7 @@ resource "aws_route_table" "public" {
   }
   
   tags = {
-    Name = "api-3000-public-rt"
+    Name = "${local.prefix}-public-rt"
   }
 }
 
@@ -61,7 +70,7 @@ resource "aws_route_table_association" "public" {
 
 # 7. セキュリティグループ作成
 resource "aws_security_group" "ecs_sg" {
-  name        = "api-3000-sg"
+  name        = "${local.prefix}-sg"
   description = "Allow inbound traffic on port 3000"
   vpc_id      = aws_vpc.main.id
 
@@ -80,13 +89,13 @@ resource "aws_security_group" "ecs_sg" {
   }
   
   tags = {
-    Name = "api-3000-sg"
+    Name = "${local.prefix}-sg"
   }
 }
 
 # 8. Fargateタスク定義作成
 resource "aws_ecs_task_definition" "express_task" {
-  family                   = "api-3000-task"
+  family                   = "${local.prefix}-task"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = "256"
@@ -94,8 +103,8 @@ resource "aws_ecs_task_definition" "express_task" {
   execution_role_arn       = aws_iam_role.ecs_execution_role.arn
 
   container_definitions = jsonencode([{
-    name      = "api-3000-container"
-    image     = "503561449641.dkr.ecr.ap-northeast-1.amazonaws.com/ecr-api-3000"
+    name      = "${local.prefix}-container"
+    image     = local.ecr_image
     essential = true
     portMappings = [{
       containerPort = 3000
@@ -106,7 +115,7 @@ resource "aws_ecs_task_definition" "express_task" {
       logDriver = "awslogs"
       options = {
         "awslogs-group"         = aws_cloudwatch_log_group.express_logs.name
-        "awslogs-region"        = "ap-northeast-1"
+        "awslogs-region"        = local.region
         "awslogs-stream-prefix" = "ecs"
       }
     }
@@ -115,13 +124,13 @@ resource "aws_ecs_task_definition" "express_task" {
 
 # 9. CloudWatch Logs設定
 resource "aws_cloudwatch_log_group" "express_logs" {
-  name              = "/ecs/api-3000"
+  name              = "/ecs/${local.prefix}"
   retention_in_days = 7
 }
 
 # 10. IAMロール作成
 resource "aws_iam_role" "ecs_execution_role" {
-  name = "api-3000-execution-role"
+  name = "${local.prefix}-execution-role"
   
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -145,7 +154,7 @@ resource "aws_iam_role_policy_attachment" "ecs_execution_role_policy" {
 
 # 12. Fargateサービス作成
 resource "aws_ecs_service" "express_service" {
-  name            = "api-3000-service"
+  name            = "${local.prefix}-service"
   cluster         = aws_ecs_cluster.default.id
   task_definition = aws_ecs_task_definition.express_task.arn
   desired_count   = 1
@@ -161,5 +170,5 @@ resource "aws_ecs_service" "express_service" {
 # 13. アウトプット
 output "service_url" {
   value = "http://${aws_ecs_service.express_service.network_configuration[0].assign_public_ip}:3000"
-  description = "API 3000のURL（注：IPアドレスはサービス起動後に確認してください）"
+  description = "${local.prefix}のURL（注：IPアドレスはサービス起動後に確認してください）"
 }
