@@ -4,7 +4,7 @@ provider "aws" {
 
 # 1. ECSクラスタ作成
 resource "aws_ecs_cluster" "default" {
-  name = "ecs-cluster"
+  name = "api-3000-cluster"
 }
 
 # 2. VPC設定
@@ -14,7 +14,7 @@ resource "aws_vpc" "main" {
   enable_dns_hostnames = true
   
   tags = {
-    Name = "express-api-vpc"
+    Name = "api-3000-vpc"
   }
 }
 
@@ -26,7 +26,7 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = true
   
   tags = {
-    Name = "express-api-public-subnet"
+    Name = "api-3000-public-subnet"
   }
 }
 
@@ -35,7 +35,7 @@ resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
   
   tags = {
-    Name = "express-api-igw"
+    Name = "api-3000-igw"
   }
 }
 
@@ -49,7 +49,7 @@ resource "aws_route_table" "public" {
   }
   
   tags = {
-    Name = "express-api-public-rt"
+    Name = "api-3000-public-rt"
   }
 }
 
@@ -61,7 +61,7 @@ resource "aws_route_table_association" "public" {
 
 # 7. セキュリティグループ作成
 resource "aws_security_group" "ecs_sg" {
-  name        = "ecs-sg"
+  name        = "api-3000-sg"
   description = "Allow inbound traffic on port 3000"
   vpc_id      = aws_vpc.main.id
 
@@ -80,13 +80,13 @@ resource "aws_security_group" "ecs_sg" {
   }
   
   tags = {
-    Name = "express-api-sg"
+    Name = "api-3000-sg"
   }
 }
 
 # 8. Fargateタスク定義作成
 resource "aws_ecs_task_definition" "express_task" {
-  family                   = "express-task"
+  family                   = "api-3000-task"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = "256"
@@ -94,7 +94,7 @@ resource "aws_ecs_task_definition" "express_task" {
   execution_role_arn       = aws_iam_role.ecs_execution_role.arn
 
   container_definitions = jsonencode([{
-    name      = "express-container"
+    name      = "api-3000-container"
     image     = "503561449641.dkr.ecr.ap-northeast-1.amazonaws.com/ecr-api-3000"
     essential = true
     portMappings = [{
@@ -115,13 +115,13 @@ resource "aws_ecs_task_definition" "express_task" {
 
 # 9. CloudWatch Logs設定
 resource "aws_cloudwatch_log_group" "express_logs" {
-  name              = "/ecs/express-api"
+  name              = "/ecs/api-3000"
   retention_in_days = 7
 }
 
 # 10. IAMロール作成
 resource "aws_iam_role" "ecs_execution_role" {
-  name = "ecs-execution-role"
+  name = "api-3000-execution-role"
   
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -145,7 +145,7 @@ resource "aws_iam_role_policy_attachment" "ecs_execution_role_policy" {
 
 # 12. Fargateサービス作成
 resource "aws_ecs_service" "express_service" {
-  name            = "express-service"
+  name            = "api-3000-service"
   cluster         = aws_ecs_cluster.default.id
   task_definition = aws_ecs_task_definition.express_task.arn
   desired_count   = 1
@@ -161,5 +161,5 @@ resource "aws_ecs_service" "express_service" {
 # 13. アウトプット
 output "service_url" {
   value = "http://${aws_ecs_service.express_service.network_configuration[0].assign_public_ip}:3000"
-  description = "Express APIのURL（注：IPアドレスはサービス起動後に確認してください）"
+  description = "API 3000のURL（注：IPアドレスはサービス起動後に確認してください）"
 }
