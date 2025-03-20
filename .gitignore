@@ -37,3 +37,6 @@ override.tf.json
 terraform.rc
 node_modules/
 .terraform.lock.hcl
+.env
+terraform/.env
+terraform/.env

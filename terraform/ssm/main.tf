@@ -6,7 +6,7 @@ provider "aws" {
 }
 
 locals {
-  prefix        = "api-3000-ssm-04"
+  prefix        = "api-3000-private-01"
   account_id    = "503561449641"
   region        = "ap-northeast-1"
   ecr_repo_name = "ecr-api-3000"
